@@ -1,0 +1,78 @@
+#ifndef NEURON
+#define NEURON
+
+using namespace std;
+
+class neuron{
+	public:
+		int no_of_inputs;
+		float *weights,*inputs;
+		float (*activation)(float);
+		float output;
+		bool keep_backup;// backup (saving copy of output in itself) is used for training..
+		
+		inline neuron(int total_inputs,float (*act)(float)):no_of_inputs(total_inputs),weights(0),inputs(0),activation(act),output(0),keep_backup(false)
+		{
+			weights= new float[no_of_inputs+1];
+			inputs= new float[no_of_inputs+1];
+			inputs[no_of_inputs]=-1;
+		}
+		
+		// extra function for 'Just In Case' ... to be used if weights need to have some initial value but doesn't matter what it is..
+		void initialize_weights(){
+			for(int i=0;i<no_of_inputs+1;i++)
+				weights[i]=0;		
+		}
+		
+		// extra function for 'Just In Case' ... to be used if inputs need to have some initial value but doesn't matter what it is..
+		void initialize_inputs(){
+			for(int i=0;i<no_of_inputs;i++)
+				inputs[i]=0;		
+		}
+		
+		void set_bias(float b){
+			weights[no_of_inputs]=b;
+		}
+		
+		inline float calc_output(){
+			float out,weigh_sum=0;
+			for(int i=0;i<no_of_inputs+1;i++)
+				weigh_sum+=weights[i]*inputs[i];
+			out=activation(weigh_sum);
+			if(keep_backup){
+				output=out;
+			}
+			return out;
+		}
+		
+		// same as above function but copies data directly into a pointer..
+		inline void calc_output(float *out){
+			float weigh_sum=0;
+			for(int i=0;i<no_of_inputs+1;i++)
+				weigh_sum+=weights[i]*inputs[i];
+			*out=activation(weigh_sum);
+			if(keep_backup){
+				output=*out;
+			}
+		}
+		
+		float& out(){
+			return output;
+		}
+		
+		float& operator[](int n){
+			return inputs[n];
+		}
+		
+		float& operator()(int n){
+			return weights[n];
+		}
+		
+		inline ~neuron(){
+			delete[] weights;
+			delete[] inputs;
+		}
+		
+};
+
+#endif

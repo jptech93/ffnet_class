@@ -1,0 +1,49 @@
+#ifndef NLAYER
+#define NLAYER
+
+#include<stdlib.h>
+#include "neuron"
+
+using namespace std;
+
+class neuron_layer{
+	public:
+		int no_of_neurons,inputs_per_neuron;
+		neuron* neurons;
+		float (*activation_of_neuron) (float);
+		void (*randomize_weight) (float*);
+		
+		neuron_layer(int total_neurons,int no_of_inputs, float (*activation)(float),void (*random)(float*)):
+		no_of_neurons(total_neurons),inputs_per_neuron(no_of_inputs),neurons(0),activation_of_neuron(activation), randomize_weight(random)
+		{
+			neurons=(neuron*)malloc(no_of_neurons*sizeof(neuron));
+			for(int i=0;i<no_of_neurons;i++)
+				new(neurons+i) neuron(inputs_per_neuron,activation_of_neuron);
+		}
+		
+		void initialize_with_random(bool include_bias=true){
+			for(int j=0;j<no_of_neurons;j++){
+				for(int i=0;i<inputs_per_neuron;i++)
+					randomize_weight(neurons[j].weights+i);
+				if(include_bias)
+					randomize_weight(neurons[j].weights+inputs_per_neuron);
+			}
+		}
+		
+		//this function assumes that you provide pointer with sufficient space...
+		void get_output_array(float *out){
+			for(int i=0;i<no_of_neurons;i++)
+				out[i]=neurons[i].calc_output();
+		}
+		
+		neuron& operator[](int n){
+			return neurons[n];
+		}
+		
+		~neuron_layer(){
+			free(neurons);
+		}
+		
+};
+
+#endif

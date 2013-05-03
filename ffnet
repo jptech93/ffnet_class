@@ -1,0 +1,121 @@
+#ifndef FFNET
+#define FFNET
+
+#include<stdlib.h>
+#include<vector>
+#include<fstream>
+#include"neuron_layer"
+
+using namespace std;
+
+class ffnet{
+	public:
+		int no_of_inputs,no_of_outputs;
+		int no_of_hidden;
+		int* neurons_in_layer;
+		neuron_layer *layers;
+		vector<float> inputs;
+		vector<float> outputs;
+		
+		//neurons_in_hidden should be a array with number of neurons in each hidden layer from botton(input) to top(output)..
+		ffnet(int inputs,int outputs,int hidden,int* neurons_in_hidden, float (*activation)(float),void (*random)(float*)):
+		no_of_inputs(inputs),no_of_outputs(outputs),no_of_hidden(hidden),neurons_in_layer(0),layers(0),inputs()
+		{
+			neurons_in_layer= new int[no_of_hidden+1];
+			for(int i=0;i<hidden;i++)
+				neurons_in_layer[i]=neurons_in_hidden[i];
+			neurons_in_layer[no_of_hidden]=no_of_outputs;
+			
+			layers= (neuron_layer*)malloc((no_of_hidden+1)*sizeof(neuron_layer));
+			new(layers) neuron_layer(neurons_in_layer[0],no_of_inputs,activation,random);
+			layers[0].initialize_with_random();
+			for(int i=1;i<hidden+1;i++){
+				new(layers+i) neuron_layer(neurons_in_layer[i],neurons_in_layer[i-1],activation,random);
+				layers[i].initialize_with_random();
+			}
+		}
+		
+		//input_no specifies which input to set.. starting from Zero..
+		void set_input(int input_no,float value){
+			for(int i=0;i<neurons_in_layer[0];i++)
+				layers[0][i][input_no]=value;
+		}
+		
+		//This function assumes that you provide correct number of inputs..
+		void set_inputs(float* inputs){
+			for(int i=0;i<no_of_inputs;i++)
+				set_input(i,inputs[i]);
+		}
+		
+		//This function assumes that you provide correct number of inputs..
+		void set_inputs(vector<float> inputs){
+			for(int i=0;i<no_of_inputs;i++)
+				set_input(i,inputs.at(i));
+		}
+		
+		//This function assumes that you have provided correct number of inputs in member vector inputs..
+		void set_inputs(){
+			for(int i=0;i<no_of_inputs;i++)
+				set_input(i,inputs.at(i));
+		}
+		
+		
+		//This function assumes that you have already set the inputs correctly...
+		void calc_output(){
+			//variables to be used inside loop are declared here.. for better program..
+			int j,k;
+			float out;
+			for(int i=1;i<no_of_hidden+1;i++){
+				for(j=0;j<neurons_in_layer[i-1];j++){
+					out=layers[i-1][j].calc_output();
+					for(k=0;k<neurons_in_layer[i];k++)
+						layers[i][k][j]=out;
+				}
+			}
+			if(outputs.size()!=no_of_outputs)
+				outputs.clear();
+				
+			for(j=0;j<neurons_in_layer[no_of_hidden];j++){
+				out=layers[no_of_hidden][j].calc_output();
+				if(j>=outputs.size())
+					outputs.push_back(out);
+				else
+					outputs.at(j)=out;
+			}
+		}
+		
+		//To get output in a array.. array SHOULD HAVE ENOUGH SPACE..
+		void calc_output(float* out){
+			calc_output();
+			for(int i=0;i<no_of_outputs;i++)
+				out[i]=outputs.at(i);
+		}
+		
+		//To get output in a vector..
+		void calc_output(vector<float> out){
+			calc_output();
+			out=outputs;
+		}
+		
+		void read_from_file(char *c){
+			fstream myfile;
+			myfile.open (c, ios::in); 
+			for(int i=0;i<no_of_hidden+1;i++)
+				for(int j=0;j<neurons_in_layer[i];j++)
+					for(int k=0;k<layers[i][j].no_of_inputs+1;k++)
+						myfile>>layers[i][j](k);
+			myfile.close();
+		}
+		
+		neuron_layer& operator[](int n){
+			return layers[n];
+		}
+		
+		~ffnet(){
+			delete[] neurons_in_layer;
+			free(layers);
+		}
+		
+};
+
+#endif

@@ -1,0 +1,168 @@
+#ifndef BPROP
+#define BPROP
+
+#include<fstream>
+#include"ffnet"
+
+class backpropagation{
+	public:
+		ffnet& nnet;
+		int no_of_inputs,no_of_outputs;
+		int no_of_hidden;
+		int* neurons_in_layer;
+		float *learn_rate,**del,alpha,***delta,***delta_prev;
+		float* actual_outputs;
+
+//DON'T FORGET TO DEFINE THIS FUNCTION WHENEVER YOU USE THIS CLASS..		
+		//funtion to be defined later according to requirements of program..
+		inline float df_activation(int layer,int neuron);	//differential of activation function.. = actual_output*(1-actual_output) for sigmoid..
+		
+		backpropagation(ffnet& net,float* ini_lrate,float ini_mom):nnet(net), no_of_inputs(net.no_of_inputs), no_of_outputs(net.no_of_outputs), no_of_hidden(net.no_of_hidden), neurons_in_layer(net.neurons_in_layer),learn_rate(ini_lrate),del(0),alpha(ini_mom),delta(0),delta_prev(0),actual_outputs((float*)malloc(net.no_of_outputs*sizeof(float)))
+		{	
+			del=(float**)malloc((no_of_hidden+1)*sizeof(float*));
+			delta=(float***)malloc((no_of_hidden+1)*sizeof(float**));
+			delta_prev=(float***)malloc((no_of_hidden+1)*sizeof(float**));
+			int temp=0;
+			for(int i=0;i<no_of_hidden+1;i++){
+				del[i]=(float*)malloc(neurons_in_layer[i]*sizeof(float));
+				delta[i]=(float**)malloc(neurons_in_layer[i]*sizeof(float*));
+				delta_prev[i]=(float**)malloc(neurons_in_layer[i]*sizeof(float*));
+				for(int j=0;j<neurons_in_layer[i];j++){
+					nnet[i][j].keep_backup=true;
+					
+					if(i==0)temp=no_of_inputs;
+					else temp=neurons_in_layer[i-1];
+					delta[i][j]=(float*)malloc((temp+1)*sizeof(float));
+					delta_prev[i][j]=(float*)malloc((temp+1)*sizeof(float));
+					
+					for(int k=0;k<temp+1;k++)
+						delta_prev[i][j][k]=0;
+				}
+			}
+			
+		}
+		
+		backpropagation(int inputs,int outputs,int hidden,int* neurons_in_hidden, float (*activation)(float),void (*random)(float*),float* ini_lrate,float ini_mom):
+		nnet(*(new ffnet(inputs,outputs,hidden,neurons_in_hidden,activation,random))),no_of_inputs(inputs),no_of_outputs(outputs),no_of_hidden(hidden),neurons_in_layer(nnet.neurons_in_layer), learn_rate(ini_lrate),del(0),alpha(ini_mom),delta(0),delta_prev(0), actual_outputs((float*)malloc(outputs*sizeof(float)))
+		{
+			del=(float**)malloc((no_of_hidden+1)*sizeof(float*));
+			delta=(float***)malloc((no_of_hidden+1)*sizeof(float**));
+			delta_prev=(float***)malloc((no_of_hidden+1)*sizeof(float**));
+			int temp=0;
+			for(int i=0;i<no_of_hidden+1;i++){
+				del[i]=(float*)malloc(neurons_in_layer[i]*sizeof(float));
+				delta[i]=(float**)malloc(neurons_in_layer[i]*sizeof(float*));
+				delta_prev[i]=(float**)malloc(neurons_in_layer[i]*sizeof(float*));
+				for(int j=0;j<neurons_in_layer[i];j++){
+					nnet[i][j].keep_backup=true;
+					
+					if(i==0)temp=no_of_inputs;
+					else temp=neurons_in_layer[i-1];
+					delta[i][j]=(float*)malloc((temp+1)*sizeof(float));
+					delta_prev[i][j]=(float*)malloc((temp+1)*sizeof(float));
+					
+					for(int k=0;k<temp+1;k++)
+						delta_prev[i][j][k]=0;
+				}
+			}
+		}
+		
+//ADDITIONS OF DELTA NEEDS TO BE CHECKED..MIGHT NOT WORK EFFICIENTLY.. SINCE NOT SURE WHAT PREV_DELTA TO USE IN MOMENTUM TERM FOR CALC NET DELTA OF EPOCH..		
+		//if add (addition of delta to old delta) =true... weight update needs to be done manually..
+		//Must provide correct number of inputs and outputs..
+		void backpropagate(float* inputs,float* target_outputs){
+		
+			nnet.set_inputs(inputs);
+			nnet.calc_output(actual_outputs);
+			float sum;
+			int temp=0;
+			
+			for(int i=no_of_hidden;i>=0;i--)
+				for(int j=0;j<neurons_in_layer[i];j++){
+					if(i==no_of_hidden)//for output layer
+						del[i][j]=(target_outputs[j]-actual_outputs[j])*df_activation(i,j);
+					else{
+						sum=0.0;
+						for(int k=0;k<neurons_in_layer[i+1];k++)
+							sum+=del[i+1][k]*nnet[i+1][k](j);
+						del[i][j]=sum*df_activation(i,j);
+					}
+					
+					if(i==0)
+						temp=no_of_inputs;
+					
+					else 
+						temp=neurons_in_layer[i-1];
+					
+					
+					for(int k=0;k<temp;k++){
+						
+						if(i==0)
+							delta[i][j][k]+=learn_rate[i]*del[i][j]*inputs[k]+alpha*delta_prev[i][j][k];
+						else
+							delta[i][j][k]+=learn_rate[i]*del[i][j]*nnet[i-1][k].out()+alpha*delta_prev[i][j][k];
+						delta_prev[i][j][k]=delta[i][j][k];
+					}
+					
+					delta[i][j][temp]+=learn_rate[i]*del[i][j]*(nnet[i][j][nnet[i][j].no_of_inputs])+alpha*delta_prev[i][j][temp];
+					//delta[i][j][temp]+=learn_rate[i]*del[i][j]*(nnet[i][j][nnet[i][j].no_of_inputs]);
+					delta_prev[i][j][temp]=delta[i][j][temp];
+					
+				}
+				
+			
+		}
+		
+		void update_weights(){
+			for(int i=0;i<no_of_hidden+1;i++)
+				for(int j=0;j<neurons_in_layer[i];j++)
+					for(int k=0;k<nnet[i][j].no_of_inputs+1;k++){
+						nnet[i][j](k)+=delta[i][j][k];
+						delta[i][j][k]=0;
+					}
+					
+		}
+		
+		void write_to_file(char *c){
+			fstream myfile;
+			myfile.open (c, ios::out | ios::trunc); 
+			for(int i=0;i<no_of_hidden+1;i++)
+				for(int j=0;j<neurons_in_layer[i];j++)
+					for(int k=0;k<nnet[i][j].no_of_inputs+1;k++)
+						myfile<<nnet[i][j](k)<<" ";
+			myfile.close();
+		}
+		
+		void read_from_file(char *c){
+			fstream myfile;
+			myfile.open (c, ios::in); 
+			for(int i=0;i<no_of_hidden+1;i++)
+				for(int j=0;j<neurons_in_layer[i];j++)
+					for(int k=0;k<nnet[i][j].no_of_inputs+1;k++)
+						myfile>>nnet[i][j](k);
+			myfile.close();
+		}
+		
+		~backpropagation(){
+			free(actual_outputs);
+			for(int i=0;i<no_of_hidden+1;i++){
+				int temp=neurons_in_layer[i];
+				for(int j=0;j<temp;j++){
+					free(delta[i][j]);
+					free(delta_prev[i][j]);
+				}
+				free(del[i]);
+				free(delta[i]);
+				free(delta_prev[i]);
+			}
+				
+			free(del);
+			free(delta);
+			free(delta_prev);
+			delete &nnet;
+		}
+		
+};
+
+
+#endif
